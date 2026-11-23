@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="MAFIABD educational public crypto market dashboard.">
+  <title>MAFIABD | Public Market Dashboard</title>
+  <style>
+    :root{--navy:#0b1220;--panel:#111c30;--gold:#e2b95b;--muted:#9eabc0;--line:#263650;--text:#f4f6fa}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(145deg,#080e19,#101c30);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:1100px;margin:auto;padding:28px 18px 48px}.top{display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:20px}
+    .brand{font-size:25px;font-weight:800;letter-spacing:2px}.brand span{color:var(--gold)}.sub{color:var(--muted);margin-top:3px}
+    .tools{display:flex;gap:9px;flex-wrap:wrap}button,input{border:1px solid var(--line);border-radius:9px;padding:10px 13px;background:#0c1728;color:var(--text);font:inherit}
+    button{cursor:pointer;border-color:#8e7136;color:var(--gold)}button:hover{background:#1a2a42}input{min-width:220px}
+    .notice{margin:20px 0;padding:12px 15px;border:1px solid #66532e;border-radius:10px;background:#211d15;color:#ead8aa;font-size:13px}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:18px 0}
+    .card{background:rgba(17,28,48,.92);border:1px solid var(--line);border-radius:13px;padding:16px}.label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:1px}.value{font-size:21px;font-weight:700;margin-top:6px}
+    h2{font-size:18px;margin:26px 0 12px}.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:rgba(17,28,48,.85)}
+    table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;padding:13px 15px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.7px}tr:last-child td{border-bottom:0}
+    .coin{font-weight:700}.symbol{color:var(--muted);font-size:12px}.up{color:#4bd49a}.down{color:#ff7b83}.status{color:var(--muted);font-size:12px;margin-top:12px}
+    footer{margin-top:30px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:16px}
+    @media(max-width:600px){.wrap{padding:20px 12px}.brand{font-size:22px}.value{font-size:18px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div><div class="brand">MAFIA<span>BD</span></div><div class="sub">Public Crypto Market Monitor · Educational use</div></div>
+    <div class="tools"><input id="search" type="search" placeholder="Search coin (e.g. BTC)" aria-label="Search coins"><button id="refresh">Refresh data</button></div>
+  </header>
+  <div class="notice">Educational dashboard using publicly available market data. It does not provide investment advice, trading signals, or trading functionality. Prices can change rapidly.</div>
+  <section class="stats">
+    <div class="card"><div class="label">Tracked markets</div><div class="value" id="tracked">10</div></div>
+    <div class="card"><div class="label">Last updated</div><div class="value" id="updated">Waiting…</div></div>
+    <div class="card"><div class="label">Data status</div><div class="value" id="status">Loading…</div></div>
+  </section>
+  <h2>Market watchlist · 24-hour overview</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Asset</th><th>Last price (USDT)</th><th>24h change</th><th>24h high</th><th>24h low</th><th>24h volume</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="6">Loading public market data…</td></tr></tbody>
+  </table></div>
+  <div class="status" id="message">Data source: Binance public market-data endpoint. Auto-refreshes every 30 seconds when available.</div>
+  <footer>MAFIABD · Independent educational project. Public market data is provided for information only. Always verify information from official sources.</footer>
+</div>
+<script>
+const symbols = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","ADAUSDT","DOGEUSDT","TRXUSDT","LINKUSDT","AVAXUSDT"];
+let marketData = [];
+const fmt = (v, max=4) => Number(v).toLocaleString(undefined,{maximumFractionDigits:max});
+async function loadData(){
+  const status=document.getElementById("status"), message=document.getElementById("message");
+  status.textContent="Loading…";
+  try{
+    const results=await Promise.all(symbols.map(async symbol=>{
+      const res=await fetch("https://data-api.binance.vision/api/v3/ticker/24hr?symbol="+symbol);
+      if(!res.ok) throw new Error("Market data request failed");
+      return await res.json();
+    }));
+    marketData=results;
+    render();
+    document.getElementById("updated").textContent=new Date().toLocaleTimeString();
+    status.textContent="Connected";
+    message.textContent="Data source: Binance public market-data endpoint. Auto-refreshes every 30 seconds when available.";
+  }catch(e){
+    status.textContent="Unavailable";
+    message.textContent="Could not load live data right now. Check your internet connection or try Refresh data later. The dashboard does not require an account or API key.";
+    if(!marketData.length) document.getElementById("rows").innerHTML='<tr><td colspan="6">Live data is temporarily unavailable. Try refreshing later.</td></tr>';
+  }
+}
+function render(){
+  const q=document.getElementById("search").value.trim().toUpperCase();
+  const filtered=marketData.filter(x=>x.symbol.includes(q));
+  document.getElementById("tracked").textContent=filtered.length;
+  document.getElementById("rows").innerHTML=filtered.map(x=>{
+    const change=Number(x.priceChangePercent), cls=change>=0?"up":"down", sign=change>0?"+":"";
+    return `<tr><td><span class="coin">${x.symbol.replace("USDT","")}</span><br><span class="symbol">${x.symbol}</span></td>
+    <td>${fmt(x.lastPrice,8)}</td><td class="${cls}">${sign}${fmt(change,2)}%</td>
+    <td>${fmt(x.highPrice,8)}</td><td>${fmt(x.lowPrice,8)}</td><td>${fmt(x.volume,2)}</td></tr>`;
+  }).join("") || '<tr><td colspan="6">No matching assets.</td></tr>';
+}
+document.getElementById("refresh").addEventListener("click",loadData);
+document.getElementById("search").addEventListener("input",render);
+loadData(); setInterval(loadData,30000);
+</script>
+</body>
+</html>
